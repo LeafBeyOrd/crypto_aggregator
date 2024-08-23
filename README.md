@@ -1,2 +1,2 @@
-# crypto_aggregator
-crypto_aggregator
+# crypto-aggregator
+crypto-aggregator
