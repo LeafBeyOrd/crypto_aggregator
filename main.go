@@ -1,30 +1,26 @@
 package main
 
 import (
-	"crypto-aggregator/coingecko"
-	"crypto-aggregator/utils"
 	"encoding/csv"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
-	"time"
+
+	"crypto-aggregator/coingecko"
+	"crypto-aggregator/utils"
 )
 
-type Props struct {
-	CurrencySymbol string `json:"currencySymbol"`
-}
-
-type Nums struct {
-	CurrencyValueDecimal string `json:"currencyValueDecimal"`
+type AggregatedData struct {
+	ProjectID           string
+	Date                string
+	NumberOfTransactions int
+	TotalVolumeUSD      float64
 }
 
 func main() {
-	// Fetch the coin list and create the coinMap
-	coinMap := coingecko.FetchCoinList()
-
 	// Open the CSV file
 	f, err := os.Open("input.csv")
 	if err != nil {
@@ -41,75 +37,101 @@ func main() {
 		log.Fatalf("Failed to read header: %v", err)
 	}
 
-	// Aggregate data
-	data := make(map[string]map[string]float64)
+	// Initialize a map to store aggregated data
+	aggregatedData := make(map[string]*AggregatedData)
+
+	// Fetch the coin list for mapping symbols to IDs
+	coinList := coingecko.FetchCoinList()
 
 	// Process each row
 	for {
 		record, err := reader.Read()
-		if err == io.EOF {
+		if err != nil {
 			break
 		}
-		if err != nil {
-			log.Fatalf("Failed to read record: %v", err)
-		}
 
-		ts := record[1]
-		projectID := record[3]
-		propsStr := record[14]
-		numsStr := record[15]
+		ts := record[1]           // Assuming this is the column for timestamp
+		projectID := record[3]    // Assuming this is the column for project ID
+		propsStr := record[14]    // Assuming this is the column for props JSON
+		numsStr := record[15]     // Assuming this is the column for nums JSON
 
-		var props Props
+		// Parse the props JSON
+		var props coingecko.Props
 		if err := json.Unmarshal([]byte(propsStr), &props); err != nil {
 			log.Printf("Failed to parse props: %v; raw input: %s", err, propsStr)
 			continue
 		}
 
-		var nums Nums
+		// Parse the nums JSON
+		var nums coingecko.Nums
 		if err := json.Unmarshal([]byte(numsStr), &nums); err != nil {
 			log.Printf("Failed to parse nums: %v; raw input: %s", err, numsStr)
 			continue
 		}
 
-		// Parse date
-		date, err := time.Parse("2006-01-02 15:04:05.000", ts)
-		if err != nil {
-			log.Printf("Failed to parse timestamp: %v; raw input: %s", err, ts)
-			continue
-		}
-		dateStr := date.Format("2006-01-02")
+		// Get the date part from the timestamp
+		date := utils.ParseDate(ts)
 
-		// Fetch the coin ID
-		coinID := coinMap[strings.ToLower(props.CurrencySymbol)]
+		// Generate a unique key for the date and project ID
+		key := fmt.Sprintf("%s_%s", date, projectID)
+
+		// Convert the currency to USD
+		coinID := coinList[strings.ToLower(props.CurrencySymbol)]
 		if coinID == "" {
-			log.Printf("Coin ID not found for symbol: %s", props.CurrencySymbol)
+			log.Printf("Currency symbol %s not found in coin list", props.CurrencySymbol)
 			continue
 		}
-
-		// Fetch the average price in USD for that date
-		averagePrice := coingecko.FetchAveragePrice(coinID, dateStr)
-		if averagePrice == 0 {
-			log.Printf("Failed to fetch price for %s on %s", coinID, dateStr)
-			continue
-		}
-
-		// Convert the value to float
-		currencyValue, err := strconv.ParseFloat(nums.CurrencyValueDecimal, 64)
+		log.Printf("FetchConversionRate:")
+		conversionRate, err := coingecko.FetchConversionRate(coinID, date)
 		if err != nil {
-			log.Printf("Failed to parse currency value: %v; raw input: %s", err, nums.CurrencyValueDecimal)
+			log.Printf("Failed to fetch conversion rate for %s: %v", coinID, err)
 			continue
 		}
 
-		// Calculate total volume in USD
-		totalVolume := currencyValue * averagePrice
+		// Calculate the volume in USD
+		volumeUSD, err := strconv.ParseFloat(nums.CurrencyValueDecimal, 64)
+		if err != nil {
+			log.Printf("Failed to parse currency value: %v", err)
+			continue
+		}
+		volumeUSD *= conversionRate
 
 		// Aggregate the data
-		if _, exists := data[dateStr]; !exists {
-			data[dateStr] = make(map[string]float64)
+		if data, exists := aggregatedData[key]; exists {
+			data.NumberOfTransactions++
+			data.TotalVolumeUSD += volumeUSD
+		} else {
+			aggregatedData[key] = &AggregatedData{
+				ProjectID:           projectID,
+				Date:                date,
+				NumberOfTransactions: 1,
+				TotalVolumeUSD:      volumeUSD,
+			}
 		}
-		data[dateStr][projectID] += totalVolume
 	}
 
-	// Write to output.csv
-	utils.WriteOutput(data)
+	// Open the output CSV file
+	outputFile, err := os.Create("output.csv")
+	if err != nil {
+		log.Fatalf("Failed to create output file: %v", err)
+	}
+	defer outputFile.Close()
+
+	writer := csv.NewWriter(outputFile)
+	defer writer.Flush()
+
+	// Write the header
+	writer.Write([]string{"date", "project_id", "number_of_transactions", "total_volume_usd"})
+
+	// Write the aggregated data
+	for _, data := range aggregatedData {
+		writer.Write([]string{
+			data.Date,
+			data.ProjectID,
+			fmt.Sprintf("%d", data.NumberOfTransactions),
+			fmt.Sprintf("%.2f", data.TotalVolumeUSD),
+		})
+	}
+
+	log.Println("Data aggregation complete, results written to output.csv")
 }

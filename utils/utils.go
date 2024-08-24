@@ -1,40 +1,16 @@
 package utils
 
 import (
-	"encoding/csv"
-	"fmt"
-	"log"
-	"os"
+	"time"
 )
 
-// WriteOutput writes the aggregated data to a CSV file
-func WriteOutput(data map[string]map[string]float64) {
-	f, err := os.Create("output.csv")
+func ParseDate(timestamp string) string {
+	// Parse the timestamp into a time.Time object
+	parsedTime, err := time.Parse("2006-01-02 15:04:05.000", timestamp)
 	if err != nil {
-		log.Fatalf("Failed to create output file: %v", err)
+		return ""
 	}
-	defer f.Close()
 
-	writer := csv.NewWriter(f)
-	defer writer.Flush()
-
-	// Write header
-	writer.Write([]string{"date", "project_id", "number_of_transactions", "total_volume_in_usd"})
-
-	// Write data
-	for date, projects := range data {
-		for projectID, totalVolume := range projects {
-			writer.Write([]string{
-				date,
-				projectID,
-				"1", // Assuming each record is one transaction
-				formatFloat(totalVolume),
-			})
-		}
-	}
-}
-
-// Helper function to format float to string
-func formatFloat(val float64) string {
-	return fmt.Sprintf("%.2f", val)
+	// Return only the date part as a string in the format "YYYY-MM-DD"
+	return parsedTime.Format("2006-01-02")
 }
