@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,11 @@ type MarketData struct {
 	Prices [][]float64 `json:"prices"`
 }
 
+// Cache structure for storing conversion rates
+var rateCache = make(map[string]float64)
+var cacheMutex = &sync.Mutex{}
+
+// FetchCoinList fetches the list of coins and their symbols from the CoinGecko API
 func FetchCoinList() map[string]string {
 	url := "https://api.coingecko.com/api/v3/coins/list?include_platform=false"
 
@@ -66,9 +72,21 @@ func FetchCoinList() map[string]string {
 	return coinMap
 }
 
+// FetchConversionRate fetches the conversion rate from a given coin to USD on a specific date
 func FetchConversionRate(coinID, date string) (float64, error) {
-	// Parse the date to get the Unix timestamps for the start and end of the day
-	log.Printf("FetchConversionRate %s", coinID)
+	cacheKey := fmt.Sprintf("%s-%s", coinID, date)
+
+	// Check if the rate is already in the cache
+	cacheMutex.Lock()
+	if rate, found := rateCache[cacheKey]; found {
+		cacheMutex.Unlock()
+		log.Printf("already exists")
+		return rate, nil
+	}
+	cacheMutex.Unlock()
+
+	// If not found in cache, proceed with API call
+	log.Printf("Fetching conversion rate for %s on %s", coinID, date)
 	startTime, err := time.Parse("2006-01-02", date)
 	if err != nil {
 		return 0, fmt.Errorf("Error parsing date: %v", err)
@@ -84,7 +102,7 @@ func FetchConversionRate(coinID, date string) (float64, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Add("accept", "application/json")
 	req.Header.Add("x-cg-demo-api-key", "CG-5Xf6UYaKqdcXac4BhQS8AvPc")
-
+	log.Printf("api call  %s ", coinID)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("Error making API request: %v", err)
@@ -112,6 +130,11 @@ func FetchConversionRate(coinID, date string) (float64, error) {
 		return 0, fmt.Errorf("No price data available")
 	}
 	averagePrice := totalPrice / float64(len(data.Prices))
+
+	// Store the result in the cache
+	cacheMutex.Lock()
+	rateCache[cacheKey] = averagePrice
+	cacheMutex.Unlock()
 
 	return averagePrice, nil
 }
