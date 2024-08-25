@@ -8,6 +8,7 @@ import (
 	"io"        
 	"log"
 	"os"
+	"time"
 	"strconv"
 	"strings"
 	"cloud.google.com/go/bigquery"
@@ -36,7 +37,9 @@ func main() {
 	projectID := os.Getenv("PROJECT_ID")
 	bqDataset := os.Getenv("BQ_DATASET")
 	bqTable := os.Getenv("BQ_TABLE")
-	processDate := os.Getenv("PROCESS_DATE")
+	
+	processDate := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+
 
 	// Initialize context
 	ctx := context.Background()

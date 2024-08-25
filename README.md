@@ -1,119 +1,110 @@
 
 # Crypto Aggregator
 
-This project is designed to aggregate cryptocurrency transaction data, read from a CSV file stored in Google Cloud Storage (GCS), and write the aggregated results to a BigQuery table. The system fetches cryptocurrency conversion rates from the CoinGecko API to convert transaction values into USD.
+## Overview
 
-## Requirements
+The Crypto Aggregator is a Go-based application designed to aggregate cryptocurrency transaction data stored in Google Cloud Storage (GCS) and store the results in a Google BigQuery table. The application is deployed using Google Cloud Run Jobs and can be scheduled to run automatically with Google Cloud Scheduler.
 
-- Go 1.16+
-- Docker
-- Terraform
-- Google Cloud SDK
-- A Google Cloud project with billing enabled
+## Features
 
-## Setup and Deployment
+- **Google Cloud Integration**: 
 
-### 1. Local Development
+- **Automated Deployment and Scheduling**:
+  - Terraform scripts are provided to automate the creation of all necessary Google Cloud resources, including Cloud Run Jobs, BigQuery datasets and tables, GCS buckets, and Cloud Scheduler jobs.
 
-#### Prerequisites
+## Project Structure
 
-- Ensure you have Go installed on your local machine.
-- Install dependencies by running:
-
-  ```bash
-  go mod tidy
-  ```
-This will generate go.sum file 
-
-
-###  Deploying to Google Cloud
-
-#### Step 1: Configure Google Cloud SDK
-
-Authenticate and set your Google Cloud project:
-
-```bash
-gcloud auth login
-gcloud config set project noble-courier-433609-s7
+```plaintext
+crypto_aggregator/
+├── app/
+│   ├── main.go
+│   ├── coingecko/
+│   │   └── coingecko.go
+│   └── utils/
+│       └── utils.go
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── iam.tf
+│   └── providers.tf
+└── Dockerfile
 ```
 
-Then enable necessary APIs:
+## Application Logic
 
-```bash
-gcloud services enable containerregistry.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable bigquery.googleapis.com
-gcloud services enable cloudscheduler.googleapis.com
-```
+### Environment Variables
 
-#### step 2: enable container registry and push docker image of go code
-1. enable Google Container Registry API
-2. docker build -t gcr.io/noble-courier-433609-s7/crypto-processor:latest .
-3. gcloud auth configure-docker
-4. docker push gcr.io/noble-courier-433609-s7/crypto-processor:latest
+The application relies on several environment variables for configuration:
 
 
-#### Step 3: Terraform Setup
+- `BUCKET_NAME`: The name of the GCS bucket where the input CSV file is stored.
+- `PROJECT_ID`: The Google Cloud project ID.
+- `BQ_DATASET`: The BigQuery dataset name where the results will be stored.
+- `BQ_TABLE`: The BigQuery table name where the results will be stored.
 
-Navigate to the `terraform/` directory:
 
-```bash
-cd terraform
-```
+Runtime Var: 
+- `PROCESS_DATE`: The date used to locate the specific input file in the GCS bucket.
 
-Initialize Terraform:
 
-```bash
-terraform init
-```
+### Workflow
 
-```bash
-gcloud auth application-default login
-```
+1. **Google Cloud Clients Initialization**:
+   - The application initializes Google Cloud clients for Storage and BigQuery. These clients are used to read data from GCS and write data to BigQuery.
 
-Review the Terraform plan:
+2. **Reading Input Data from GCS**:
+   - The application reads a CSV file from GCS. The file is expected to be located at `gs://<BUCKET_NAME>/<PROCESS_DATE>/input.csv`.
 
-```bash
-terraform plan
-```
+3. **Processing the CSV Data**:
+   - Each row in the CSV file contains transaction data, including information about the cryptocurrency used in the transaction.
+   - The application extracts the `currencySymbol` and `currencyValueDecimal` from each row.
+   - The `currencySymbol` is mapped to its corresponding CoinGecko ID using a pre-fetched list of supported coins.
+   - The application fetches the conversion rate for the cryptocurrency to USD for the specific date.
+   - It then converts the transaction amount to USD and aggregates it based on the date and project ID.
 
-Apply the Terraform configuration:
+4. **Writing Aggregated Data to BigQuery**:
+   - The aggregated data, including the total volume in USD and the number of transactions, is written to a BigQuery table.
 
-```bash
-terraform apply
-```
+## Deployment
 
-This will:
+### Prerequisites
 
-- Set up a Google Cloud Storage (GCS) bucket to store the input CSV files.
-- Create a BigQuery dataset and table.
-- Deploy the application to Cloud Run jobs.
-- Set up a Cloud Scheduler job to trigger the Cloud Run service daily.
+- Google Cloud SDK installed and authenticated.
+- Docker installed.
+- Terraform installed.
 
-#### Step 3: Deploy the Go Application
+### Step-by-Step Deployment
 
-Build and push the Docker image to Google Container Registry (GCR):
+1. **Clone the Repository**
 
-```bash
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/crypto-aggregator
-```
+2. **Change some vars in variables.tf**:
+   specifically you need to change project_id and bucket_name to yours, as they are globally unique. 
 
-Update the Cloud Run service to use the newly built image:
+3. **Build and Push the Docker Image**:
+    ``sh
+    docker build -t gcr.io/<your-project-id>/crypto-processor:latest .
+    docker push gcr.io/<your-project-id>/crypto-processor:latest
+    ```
 
-```bash
-gcloud run deploy crypto-aggregator   --image gcr.io/YOUR_PROJECT_ID/crypto-aggregator   --platform managed   --region YOUR_REGION
-```
+4. **Initialize and Apply Terraform**:
+    ```sh
+    cd terraform
+    terraform init
+    terraform apply
+    ```
 
-### 3. Environment Variables
+    Terraform will set up the following resources:
+    - Google Cloud Run Job for executing the Go application.
+    - GCS bucket for storing input CSV files.
+    - BigQuery dataset and table for storing the results.
+    - Cloud Scheduler job to trigger the Cloud Run Job periodically.
 
-The application uses the following environment variables:
+## Usage
 
-- `BUCKET_NAME`: Name of the GCS bucket containing the input CSV files.
-- `PROJECT_ID`: Google Cloud project ID.
-- `BQ_DATASET`: BigQuery dataset name.
-- `BQ_TABLE`: BigQuery table name.
-- `PROCESS_DATE`: Date of the data to process (format: YYYY-MM-DD).
+After the deployment, the Cloud Run Job will be automatically triggered based on the schedule defined in Cloud Scheduler. The job will:
 
-### 4. Google Cloud Scheduler
+1. Fetch the input CSV file from the GCS bucket for the specific date.
+2. Process the data, convert it to USD, and aggregate it.
+3. Store the results in the specified BigQuery table.
 
-The Cloud Scheduler job is configured to run the Cloud Run service daily. It passes the current date as `PROCESS_DATE` to the Cloud Run service, which then reads the appropriate CSV file from GCS and writes the aggregated results to BigQuery.

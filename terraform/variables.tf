@@ -27,9 +27,3 @@ variable "bq_table_name" {
   type        = string
   default     = "crypto_transactions"
 }
-
-variable "process_date" {
-  description = "Date passed to the job"
-  type        = string
-  default     = "2024-08-20"  # We can set a default or override it when running the job
-}

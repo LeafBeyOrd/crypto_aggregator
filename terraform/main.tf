@@ -85,7 +85,7 @@ resource "google_cloud_run_v2_job" "crypto_processor_job" {
 # Cloud Scheduler Job to trigger the Cloud Run Job
 resource "google_cloud_scheduler_job" "crypto_processor_scheduler" {
   name             = "daily-crypto-processor"
-  schedule         = "0 0 * * *"  # Runs at midnight every day
+  schedule         = "1 0 * * *"  # Runs 1 second after midnight UTC every day
   time_zone        = "Etc/UTC"
 
   http_target {
@@ -93,13 +93,6 @@ resource "google_cloud_scheduler_job" "crypto_processor_scheduler" {
 
     # Construct the URL manually for the Cloud Run job
     uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.crypto_processor_job.name}:run"
-
-    # Use the base64encode function to encode the JSON body
-    body = base64encode(
-      jsonencode({
-        "PROCESS_DATE" = "${formatdate("YYYY-MM-DD", timestamp())}"
-      })
-    )
 
     oidc_token {
       service_account_email = google_service_account.cloud_run_invoker_sa.email
