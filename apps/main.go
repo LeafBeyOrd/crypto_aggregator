@@ -5,31 +5,29 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"        
 	"log"
 	"os"
 	"strconv"
 	"strings"
-	"time"
-
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/storage"
 	"crypto-aggregator/coingecko"
 	"crypto-aggregator/utils"
-	"google.golang.org/api/iterator"
 )
 
 type AggregatedData struct {
-	ProjectID           string
-	Date                string
+	ProjectID            string
+	Date                 string
 	NumberOfTransactions int
-	TotalVolumeUSD      float64
+	TotalVolumeUSD       float64
 }
 
 type BigQueryRow struct {
-	Date                string  `bigquery:"date"`
-	ProjectID           string  `bigquery:"project_id"`
+	Date                 string  `bigquery:"date"`
+	ProjectID            string  `bigquery:"project_id"`
 	NumberOfTransactions int     `bigquery:"number_of_transactions"`
-	TotalVolumeUSD      float64 `bigquery:"total_volume_usd"`
+	TotalVolumeUSD       float64 `bigquery:"total_volume_usd"`
 }
 
 func main() {
@@ -134,10 +132,10 @@ func main() {
 			data.TotalVolumeUSD += volumeUSD
 		} else {
 			aggregatedData[key] = &AggregatedData{
-				ProjectID:           projectID,
-				Date:                date,
+				ProjectID:            projectID,
+				Date:                 date,
 				NumberOfTransactions: 1,
-				TotalVolumeUSD:      volumeUSD,
+				TotalVolumeUSD:       volumeUSD,
 			}
 		}
 	}
@@ -155,10 +153,10 @@ func main() {
 	var rows []*BigQueryRow
 	for _, data := range aggregatedData {
 		rows = append(rows, &BigQueryRow{
-			Date:                data.Date,
-			ProjectID:           data.ProjectID,
+			Date:                 data.Date,
+			ProjectID:            data.ProjectID,
 			NumberOfTransactions: data.NumberOfTransactions,
-			TotalVolumeUSD:      data.TotalVolumeUSD,
+			TotalVolumeUSD:       data.TotalVolumeUSD,
 		})
 	}
 

@@ -1,7 +1,7 @@
 variable "project_id" {
   description = "The GCP project ID"
   type        = string
-  default     = "project-id"
+  default     = "noble-courier-433609-s7"
 }
 
 variable "region" {
@@ -13,7 +13,7 @@ variable "region" {
 variable "bucket_name" {
   description = "The name of the GCS bucket"
   type        = string
-  default     = "bucket-name"
+  default     = "crypto_raw_input"
 }
 
 variable "bq_dataset_name" {
@@ -28,8 +28,8 @@ variable "bq_table_name" {
   default     = "crypto_transactions"
 }
 
-variable "date" {
+variable "process_date" {
   description = "Date passed to the job"
   type        = string
-  default     = "2024-08-20"  # We can set a default or override it from the Cloud Scheduler
+  default     = "2024-08-20"  # We can set a default or override it when running the job
 }
