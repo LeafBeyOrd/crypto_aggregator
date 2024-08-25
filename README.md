@@ -67,9 +67,6 @@ Initialize Terraform:
 terraform init
 ```
 
-
-Run :
-
 ```bash
 gcloud auth application-default login
 ```
@@ -90,7 +87,7 @@ This will:
 
 - Set up a Google Cloud Storage (GCS) bucket to store the input CSV files.
 - Create a BigQuery dataset and table.
-- Deploy the application to Cloud Run.
+- Deploy the application to Cloud Run jobs.
 - Set up a Cloud Scheduler job to trigger the Cloud Run service daily.
 
 #### Step 3: Deploy the Go Application
