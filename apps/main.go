@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -8,9 +9,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/storage"
 	"crypto-aggregator/coingecko"
 	"crypto-aggregator/utils"
+	"google.golang.org/api/iterator"
 )
 
 type AggregatedData struct {
@@ -20,16 +25,40 @@ type AggregatedData struct {
 	TotalVolumeUSD      float64
 }
 
+type BigQueryRow struct {
+	Date                string  `bigquery:"date"`
+	ProjectID           string  `bigquery:"project_id"`
+	NumberOfTransactions int     `bigquery:"number_of_transactions"`
+	TotalVolumeUSD      float64 `bigquery:"total_volume_usd"`
+}
+
 func main() {
-	// Open the CSV file
-	f, err := os.Open("input.csv")
+	// Get environment variables for configuration
+	bucketName := os.Getenv("BUCKET_NAME")
+	projectID := os.Getenv("PROJECT_ID")
+	bqDataset := os.Getenv("BQ_DATASET")
+	bqTable := os.Getenv("BQ_TABLE")
+	processDate := os.Getenv("PROCESS_DATE")
+
+	// Initialize context
+	ctx := context.Background()
+
+	// Initialize GCS client
+	storageClient, err := storage.NewClient(ctx)
 	if err != nil {
-		log.Fatalf("Failed to open file: %v", err)
+		log.Fatalf("Failed to create GCS client: %v", err)
 	}
-	defer f.Close()
+	defer storageClient.Close()
+
+	// Open the input file from GCS
+	rc, err := storageClient.Bucket(bucketName).Object(fmt.Sprintf("%s/input.csv", processDate)).NewReader(ctx)
+	if err != nil {
+		log.Fatalf("Failed to open GCS object: %v", err)
+	}
+	defer rc.Close()
 
 	// Create a CSV reader
-	reader := csv.NewReader(f)
+	reader := csv.NewReader(rc)
 	reader.FieldsPerRecord = -1 // Allows variable number of fields per record
 
 	// Skip the header row
@@ -46,14 +75,17 @@ func main() {
 	// Process each row
 	for {
 		record, err := reader.Read()
-		if err != nil {
+		if err == io.EOF {
 			break
 		}
+		if err != nil {
+			log.Fatalf("Failed to read record: %v", err)
+		}
 
-		ts := record[1]           // Assuming this is the column for timestamp
-		projectID := record[3]    // Assuming this is the column for project ID
-		propsStr := record[14]    // Assuming this is the column for props JSON
-		numsStr := record[15]     // Assuming this is the column for nums JSON
+		ts := record[1]        // Assuming this is the column for timestamp
+		projectID := record[3] // Assuming this is the column for project ID
+		propsStr := record[14] // Assuming this is the column for props JSON
+		numsStr := record[15]  // Assuming this is the column for nums JSON
 
 		// Parse the props JSON
 		var props coingecko.Props
@@ -81,7 +113,7 @@ func main() {
 			log.Printf("Currency symbol %s not found in coin list", props.CurrencySymbol)
 			continue
 		}
-		log.Printf("FetchConversionRate:")
+
 		conversionRate, err := coingecko.FetchConversionRate(coinID, date)
 		if err != nil {
 			log.Printf("Failed to fetch conversion rate for %s: %v", coinID, err)
@@ -110,28 +142,29 @@ func main() {
 		}
 	}
 
-	// Open the output CSV file
-	outputFile, err := os.Create("output.csv")
+	// Initialize BigQuery client
+	bqClient, err := bigquery.NewClient(ctx, projectID)
 	if err != nil {
-		log.Fatalf("Failed to create output file: %v", err)
+		log.Fatalf("Failed to create BigQuery client: %v", err)
 	}
-	defer outputFile.Close()
+	defer bqClient.Close()
 
-	writer := csv.NewWriter(outputFile)
-	defer writer.Flush()
+	// Write the aggregated data to BigQuery
+	u := bqClient.Dataset(bqDataset).Table(bqTable).Uploader()
 
-	// Write the header
-	writer.Write([]string{"date", "project_id", "number_of_transactions", "total_volume_usd"})
-
-	// Write the aggregated data
+	var rows []*BigQueryRow
 	for _, data := range aggregatedData {
-		writer.Write([]string{
-			data.Date,
-			data.ProjectID,
-			fmt.Sprintf("%d", data.NumberOfTransactions),
-			fmt.Sprintf("%.2f", data.TotalVolumeUSD),
+		rows = append(rows, &BigQueryRow{
+			Date:                data.Date,
+			ProjectID:           data.ProjectID,
+			NumberOfTransactions: data.NumberOfTransactions,
+			TotalVolumeUSD:      data.TotalVolumeUSD,
 		})
 	}
 
-	log.Println("Data aggregation complete, results written to output.csv")
+	if err := u.Put(ctx, rows); err != nil {
+		log.Fatalf("Failed to insert data into BigQuery: %v", err)
+	}
+
+	log.Println("Data aggregation complete, results written to BigQuery")
 }
