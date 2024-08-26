@@ -1,4 +1,3 @@
-
 # Crypto Aggregator
 
 ## Overview
@@ -7,29 +6,10 @@ The Crypto Aggregator is a Go-based application designed to aggregate cryptocurr
 
 ## Features
 
-- **Google Cloud Integration**: 
+- **Google Cloud Integration**: The application is tightly integrated with Google Cloud services, including GCS for storage, BigQuery for data warehousing, Cloud Run for scalable compute, and Cloud Scheduler for job automation.
 
 - **Automated Deployment and Scheduling**:
   - Terraform scripts are provided to automate the creation of all necessary Google Cloud resources, including Cloud Run Jobs, BigQuery datasets and tables, GCS buckets, and Cloud Scheduler jobs.
-
-## Project Structure
-
-```plaintext
-crypto_aggregator/
-├── app/
-│   ├── main.go
-│   ├── coingecko/
-│   │   └── coingecko.go
-│   └── utils/
-│       └── utils.go
-├── terraform/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   ├── iam.tf
-│   └── providers.tf
-└── Dockerfile
-```
 
 ## Application Logic
 
@@ -37,16 +17,10 @@ crypto_aggregator/
 
 The application relies on several environment variables for configuration:
 
-
 - `BUCKET_NAME`: The name of the GCS bucket where the input CSV file is stored.
 - `PROJECT_ID`: The Google Cloud project ID.
 - `BQ_DATASET`: The BigQuery dataset name where the results will be stored.
 - `BQ_TABLE`: The BigQuery table name where the results will be stored.
-
-
-Runtime Var: 
-- `PROCESS_DATE`: The date used to locate the specific input file in the GCS bucket.
-
 
 ### Workflow
 
@@ -62,6 +36,7 @@ Runtime Var:
    - The `currencySymbol` is mapped to its corresponding CoinGecko ID using a pre-fetched list of supported coins.
    - The application fetches the conversion rate for the cryptocurrency to USD for the specific date.
    - It then converts the transaction amount to USD and aggregates it based on the date and project ID.
+   - It uses a cache map to reduce the number of API calls to CoinGecko (saving cost and time by > 90%).
 
 4. **Writing Aggregated Data to BigQuery**:
    - The aggregated data, including the total volume in USD and the number of transactions, is written to a BigQuery table.
@@ -71,6 +46,7 @@ Runtime Var:
 ### Prerequisites
 
 - Google Cloud SDK installed and authenticated.
+- GCP account with necessary APIs enabled.
 - Docker installed.
 - Terraform installed.
 
@@ -78,11 +54,11 @@ Runtime Var:
 
 1. **Clone the Repository**
 
-2. **Change some vars in variables.tf**:
-   specifically you need to change project_id and bucket_name to yours, as they are globally unique. 
+2. **Update Variables**:
+   - Modify `variables.tf` to set your `project_id` and `bucket_name` as these values need to be globally unique.
 
 3. **Build and Push the Docker Image**:
-    ``sh
+    ```sh
     docker build -t gcr.io/<your-project-id>/crypto-processor:latest .
     docker push gcr.io/<your-project-id>/crypto-processor:latest
     ```
@@ -108,3 +84,10 @@ After the deployment, the Cloud Run Job will be automatically triggered based on
 2. Process the data, convert it to USD, and aggregate it.
 3. Store the results in the specified BigQuery table.
 
+## Further Improvements
+
+Due to time constraints, this project can be enhanced in several ways:
+
+1. **API Key Management**: Store the CoinGecko API key in Google Secret Manager for enhanced security.
+2. **Data Visualization**: Create a dashboard for the BigQuery table using Looker Studio or another BI tool.
+3. **CI/CD Pipeline**: Implement a CI/CD pipeline for automated testing, building, and deployment.
