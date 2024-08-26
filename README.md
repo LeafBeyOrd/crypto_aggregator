@@ -59,6 +59,7 @@ The application relies on several environment variables for configuration:
 
 3. **Build and Push the Docker Image**:
     ```sh
+    cd apps
     docker build -t gcr.io/<your-project-id>/crypto-processor:latest .
     docker push gcr.io/<your-project-id>/crypto-processor:latest
     ```
