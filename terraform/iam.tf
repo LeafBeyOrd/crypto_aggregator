@@ -21,6 +21,13 @@ resource "google_project_iam_binding" "cloud_scheduler_admin_sa_binding" {
   ]
 }
 
+# Grant IAM Service Account User role
+resource "google_project_iam_member" "sa_user_role" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:${google_service_account.cloud_run_invoker_sa.email}"
+}
+
 data "google_compute_default_service_account" "default" {
   project = var.project_id
 }

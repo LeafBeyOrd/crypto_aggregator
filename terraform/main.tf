@@ -46,6 +46,8 @@ resource "google_bigquery_table" "crypto_table" {
   ])
 }
 
+
+
 # Cloud Run Job for processing crypto data
 resource "google_cloud_run_v2_job" "crypto_processor_job" {
   name     = "crypto-processor-job"
@@ -82,6 +84,12 @@ resource "google_cloud_run_v2_job" "crypto_processor_job" {
   launch_stage = "GA"
 }
 
+
+# Get the Project Number
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
 # Cloud Scheduler Job to trigger the Cloud Run Job
 resource "google_cloud_scheduler_job" "crypto_processor_scheduler" {
   name             = "daily-crypto-processor"
@@ -91,11 +99,12 @@ resource "google_cloud_scheduler_job" "crypto_processor_scheduler" {
   http_target {
     http_method = "POST"
 
-    # Construct the URL manually for the Cloud Run job
-    uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.crypto_processor_job.name}:run"
+    # Use the correct URI
+    uri = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${data.google_project.project.number}/jobs/${google_cloud_run_v2_job.crypto_processor_job.name}:run"
 
-    oidc_token {
+    oauth_token {
       service_account_email = google_service_account.cloud_run_invoker_sa.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
     }
 
     headers = {
@@ -103,3 +112,4 @@ resource "google_cloud_scheduler_job" "crypto_processor_scheduler" {
     }
   }
 }
+
