@@ -49,6 +49,7 @@ The application relies on several environment variables for configuration:
 - GCP account with necessary APIs enabled.
 - Docker installed.
 - Terraform installed.
+- API key for coingecko
 
 ### Step-by-Step Deployment
 
