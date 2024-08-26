@@ -1,10 +1,15 @@
 # Crypto Aggregator
 
+## Video Demo :
+https://drive.google.com/file/d/1WT5GegEKmV-beJ8ckuX0u-vgCudZ6__M/view?usp=sharing
+
+
 ## Overview
 
 The Crypto Aggregator is a Go-based application designed to aggregate cryptocurrency transaction data stored in Google Cloud Storage (GCS) and store the results in a Google BigQuery table. The application is deployed using Google Cloud Run Jobs and can be scheduled to run automatically with Google Cloud Scheduler.
 
 ## Features
+
 
 - **Google Cloud Integration**: The application is tightly integrated with Google Cloud services, including GCS for storage, BigQuery for data warehousing, Cloud Run for scalable compute, and Cloud Scheduler for job automation.
 
